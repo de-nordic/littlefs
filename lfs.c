@@ -10,6 +10,8 @@
 #define LFS_BLOCK_NULL ((lfs_block_t)-1)
 #define LFS_BLOCK_INLINE ((lfs_block_t)-2)
 
+extern int64_t k_uptime_ticks();
+
 /// Caching block device operations ///
 static inline void lfs_cache_drop(lfs_t *lfs, lfs_cache_t *rcache) {
     // do not zero, cheaper if cache is readonly or only going to be
@@ -2548,20 +2550,31 @@ int lfs_file_close(lfs_t *lfs, lfs_file_t *file) {
     LFS_TRACE("lfs_file_close(%p, %p)", (void*)lfs, (void*)file);
     LFS_ASSERT(file->flags & LFS_F_OPENED);
 
+    uint64_t start, end;
+    
+    start = k_uptime_ticks();
     int err = lfs_file_sync(lfs, file);
+    end = k_uptime_ticks();
+    printk("lfs_file_sync %lld\n", end - start);
 
     // remove from list of mdirs
+    start = k_uptime_ticks();
     for (struct lfs_mlist **p = &lfs->mlist; *p; p = &(*p)->next) {
         if (*p == (struct lfs_mlist*)file) {
             *p = (*p)->next;
             break;
         }
     }
+    end = k_uptime_ticks();
+    printk("lfs_file_sync_loop %lld\n", end - start);
 
     // clean up memory
+    start = k_uptime_ticks();
     if (!file->cfg->buffer) {
         lfs_free(file->cache.buffer);
     }
+    end = k_uptime_ticks();
+    printk("lfs_file_sync_free %lld\n", end - start);
 
     file->flags &= ~LFS_F_OPENED;
     LFS_TRACE("lfs_file_close -> %d", err);
